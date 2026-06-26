@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+
+    <!-- ============================================================
+         实车精简版 URDF（替换原 RoboMaster 哨兵 sentry 模型）
+         只保留真车 2D 导航必须的 frame：
+           base_footprint -> chassis -> gimbal_yaw / front_mid360
+         去掉了云台塔 / 装甲板 / 4 个麦轮 / 工业相机 / 灯条 / 测速模块
+         以及所有 Gazebo 插件——这些仅 Gazebo 仿真用，真车无关。
+         仿真不受影响：Gazebo 用的是 simulation_robot.sdf.xmacro。
+
+         ⚠️ 关键联动：base_footprint -> front_mid360 是 URDF 里唯一
+            参与定位运算的量。改了下面的 mid360_* 后，必须同步修改
+            ~/car_drive 里 lidar_odom_tf_broadcaster.py 的 lidar_x/y/z，
+            否则 odom->base 与 base->lidar 不一致，定位会错。
+         ============================================================ -->
+
+    <!-- 仅需 MID360 定义（提供 front_mid360 link/joint；其 sensor 仅仿真用，转 URDF 时丢弃） -->
+    <xmacro_include uri="model://mid360/model.sdf.xmacro" />
+
+    <!-- ===== 实车实测尺寸（按真车修改这里即可） ===== -->
+    <!-- 底盘 box：正方形边长（长=宽）与高（顶面离地） -->
+    <xmacro_define_value name="chassis_size_x" value="0.20" />
+    <xmacro_define_value name="chassis_size_y" value="0.20" />
+    <xmacro_define_value name="chassis_size_z" value="0.08" />
+    <!-- MID360 光心相对 base_footprint：贴车头 +x 边，离地 0.12 m -->
+    <xmacro_define_value name="mid360_x" value="0.08" />
+    <xmacro_define_value name="mid360_y" value="0.0" />
+    <xmacro_define_value name="mid360_z" value="0.12" />
+
+    <!-- 模型名保持不变，避免影响其它引用 -->
+    <model name="pb2025_sentry_robot">
+
+        <pose>0 0 0 0 0 0</pose>
+
+        <!-- 根 link：底盘在地面的投影 -->
+        <link name="base_footprint"/>
+
+        <!-- base_footprint -> chassis：chassis 原点放在地面 (z=0) -->
+        <joint name="base_to_chassis" type="fixed">
+            <pose>0 0 0 0 0 0</pose>
+            <parent>base_footprint</parent>
+            <child>chassis</child>
+        </joint>
+
+        <!-- 底盘本体：方盒，盒心抬到 z = size_z/2，使盒底贴地、盒顶离地 size_z -->
+        <link name="chassis">
+            <inertial>
+                <pose>0 0 ${chassis_size_z/2} 0 0 0</pose>
+                <xmacro_block name="inertia_box" m="5.0" x="${chassis_size_x}" y="${chassis_size_y}" z="${chassis_size_z}"/>
+            </inertial>
+            <visual name="chassis_visual">
+                <pose>0 0 ${chassis_size_z/2} 0 0 0</pose>
+                <xmacro_block name="geometry_box" x="${chassis_size_x}" y="${chassis_size_y}" z="${chassis_size_z}"/>
+            </visual>
+            <collision name="chassis_collision">
+                <pose>0 0 ${chassis_size_z/2} 0 0 0</pose>
+                <xmacro_block name="geometry_box" x="${chassis_size_x}" y="${chassis_size_y}" z="${chassis_size_z}"/>
+            </collision>
+        </link>
+
+        <!-- gimbal_yaw：实车无云台，固定在底盘中心。
+             nav2(point_lio / controller / costmap) 把它当 robot_base_frame，
+             这里与 base_footprint 水平重合 (x=y=0)，等价于直接以底盘中心为机器人中心。
+             用 fixed 关节，因此不再依赖 serial/gimbal_joint_state。 -->
+        <joint name="gimbal_yaw_joint" type="fixed">
+            <pose relative_to="chassis">0 0 ${chassis_size_z/2} 0 0 0</pose>
+            <parent>chassis</parent>
+            <child>gimbal_yaw</child>
+        </joint>
+        <link name="gimbal_yaw">
+            <pose relative_to="gimbal_yaw_joint">0 0 0 0 0 0</pose>
+        </link>
+
+        <!-- MID360：贴车头 +x 边，离地 mid360_z。
+             rpy 保持 0 0 0——朝向偏差由 ~/car_drive 的
+             lidar_odom_tf_broadcaster lidar_yaw_deg=180 处理（已调好，勿在此加旋转）。 -->
+        <xmacro_block name="livox" prefix="front_" parent="chassis"
+            pose="${mid360_x} ${mid360_y} ${mid360_z} 0 0 0" update_rate="20" samples="1875"/>
+
+    </model>
+</sdf>

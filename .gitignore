@@ -1,0 +1,20 @@
+# ROS 2 colcon 构建产物
+build/
+install/
+log/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.egg-info/
+
+# point_lio 建图运行时输出(每次建图重新生成,80M+,不入库)
+src/mapping/point_lio/PCD/*.pcd
+
+# 大体积废弃地图(保留在用的 arena.* 等,忽略 31M 的 scratch)
+src/navigation/pb2025_nav_bringup/pcd/reality/my_map3.pcd
+
+# 编辑器/系统
+.vscode/
+*.swp
+.DS_Store

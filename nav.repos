@@ -1,0 +1,18 @@
+# nav 外部依赖来源台账(monorepo 已把所有包 vendored 入库,此文件仅作"溯源/更新"用)。
+# 用 vcstool 重新拉取某个上游可参考此处;日常部署不需要它(git clone 即含全部源码)。
+#
+# Python 依赖(不在此清单,需 pip):
+#   pip install xmacro        # sdformat_tools 运行时依赖
+#
+repositories:
+  # 第三方工具:运行时把 SDF 转 URDF(robot_state_publisher 用)。曾在整合时漏装,导致导航无法启动。
+  src/description/sdformat_tools:
+    type: git
+    url: https://github.com/gezp/sdformat_tools.git
+    version: galactic
+
+  # 其余 ROS 包(point_lio / livox_ros_driver2 / small_gicp / loam_interface /
+  # pb2025_* / terrain_analysis(_ext) / sensor_scan_generation / pointcloud_to_laserscan /
+  # pb_* / pb2025_robot_description)均从 ~/mid360_nav 整理而来,
+  # 上游主体为 SMBU-PolarBear-Robotics-Team/pb2025_sentry_nav。
+  # loam_interface:point_lio -> /registered_scan + /lidar_odometry 的桥梁,整合时误删、已补回。
