@@ -86,12 +86,18 @@ MID360 ─livox_ros_driver2─▶ /livox/lidar,/livox/imu
 
 ## 七、部署到新设备 / 多设备对齐
 
-本工作区是 **monorepo**:所有包(含第三方 `sdformat_tools`、桥接节点 `loam_interface`)都已入库,
-`git clone` 即得全部源码,部署不依赖外网逐个拉取。
+本工作区是 **monorepo**:所有包(含第三方 `sdformat_tools`、桥接节点 `loam_interface`、
+bundle 的 `Livox-SDK2` amd64/arm64 预编译库)都已入库,`git clone` 即得全部源码。
+
+**设备要求(满足后即可一键搭建)**:
+- Ubuntu 22.04 + **ROS 2 Humble**(已 `source /opt/ros/humble/setup.bash`)
+- 架构 **x86_64 或 arm64**(Livox-SDK2 两种预编译库都已 bundle,Jetson 狗可直接用)
+- `rosdep` 已初始化;**构建期能访问 GitHub**(`small_gicp_relocalization` 用 FetchContent 拉 `koide3/small_gicp`)。
+  直连不通时 `setup.sh` 会自动用本机 mihomo(`127.0.0.1:7897`)给 github 配 git 代理。
 
 ```bash
-git clone <仓库地址> ~/nav && cd ~/nav
-./setup.sh          # 装系统依赖(rosdep)+ pip xmacro + colcon build
+git clone https://github.com/WrenInk/nav ~/nav && cd ~/nav
+./setup.sh          # 自动:[联网检测/配代理] + rosdep 装系统依赖 + pip xmacro + colcon build
 source install/setup.bash
 ./smoke_test.sh     # 可选:验证包齐全 + 两条 launch 可解析
 ```

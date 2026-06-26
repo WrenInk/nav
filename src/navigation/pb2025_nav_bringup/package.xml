@@ -18,7 +18,7 @@
   <exec_depend>navigation2</exec_depend>
   <exec_depend>nav2_common</exec_depend>
   <exec_depend>pb_nav2_plugins</exec_depend>
-  <exec_depend>pb2025_sentry_nav</exec_depend>
+  <!-- pb2025_sentry_nav 是上游仓库名而非可安装包(其内各包已分别声明),移除以免 rosdep 解析失败 -->
   <exec_depend>pb_teleop_twist_joy</exec_depend>
   <exec_depend>livox_ros_driver2</exec_depend>
   <exec_depend>point_lio</exec_depend>

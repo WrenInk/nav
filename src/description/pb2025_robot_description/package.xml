@@ -16,7 +16,9 @@
 	<exec_depend>nav2_common</exec_depend>
 	<exec_depend>sdformat_tools</exec_depend>
 
-	<depend>rmoss_gz_resources</depend>
+	<!-- rmoss_gz_resources: 仅 Gazebo 仿真用(网格资源),实车建图/导航不需要;
+	     需要跑仿真时再单独装(见 src/description/pb2025_robot_description/dependencies.repos) -->
+	<!-- <depend>rmoss_gz_resources</depend> -->
 
 	<test_depend>ament_cmake_gtest</test_depend>
 	<test_depend>ament_lint_auto</test_depend>
