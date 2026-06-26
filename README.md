@@ -123,14 +123,61 @@ git clone https://gitclone.com/github.com/WrenInk/nav ~/nav   # 镜像
 > ⚠️ 若设备**没运行 mihomo**,别让 git/环境变量指向 `127.0.0.1:7897`,否则一切外连"连接被拒绝"。
 > 检查: `env | grep -i proxy`,清理: `unset http_proxy https_proxy all_proxy`。
 
-**2. `rosdep update`** —— 国内 `raw.githubusercontent.com` 常被墙(即使 github.com 通也可能拉不到)。二选一:
+**2. `rosdep update`** —— 国内 `raw.githubusercontent.com` 常被墙(即使 github.com 通也可能拉不到)。
+
+**推荐:fishros 一键换源**(同时把系统 apt 源 + rosdep 源都换成国内镜像,最省事):
 ```bash
-wget http://fishros.com/install -O fishros && . fishros     # 选"一键配置 rosdep"(最省事)
+wget http://fishros.com/install -O fishros && . fishros
 ```
-或清华 tuna 镜像:
+运行后在菜单里选「**换源**」(系统源 + ROS 源)和「**一键配置 rosdep**」即可。
+
+或手动用清华 tuna 镜像配 rosdep:
 ```bash
 echo 'export ROSDISTRO_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/rosdistro/index-v4.yaml' >> ~/.bashrc && source ~/.bashrc
 sudo sed -i 's#https://raw.githubusercontent.com#https://mirrors.tuna.tsinghua.edu.cn/github-raw#g' /etc/ros/rosdep/sources.list.d/20-default.list
 rosdep update
 ```
 配好后重跑 `./setup.sh` 即可。
+
+## 九、MID360 网口配置(建图/导航前必做)
+
+MID360 是**有线以太网雷达**。驱动启动时会把数据套接字 **bind 到主机 IP `192.168.1.50`**(见
+`src/driver/livox_ros_driver2/config/MID360_config.json`)。若主机有线网口没有这个 IP,会报:
+
+```
+bind failed  →  Failed to init livox lidar sdk  →  Init lds lidar fail!
+```
+→ point_lio 收不到点 → **RViz 没有点云**。所以**新设备第一次用前,必须把连雷达的有线网口配成静态 `192.168.1.50`**。
+
+**网段固定**:雷达 `192.168.1.146`、主机 `192.168.1.50`、掩码 `/24`(同网段直连,无需网关)。
+
+### 方法 A:图形界面(永久,推荐)
+设置 → 网络 → 有线 → ⚙ → **IPv4 → 手动(Manual)**:
+
+| 字段 | 值 |
+|---|---|
+| 地址 Address | `192.168.1.50` |
+| 子网掩码 Netmask | `255.255.255.0`(或前缀 `24`) |
+| 网关 Gateway | **留空!** 填了会抢默认路由、断 WiFi 上网 |
+| DNS / 路由 | 留空 |
+
+保存后把该有线连接**关→开**一次。上网仍走 WiFi,互不影响。
+
+### 方法 B:命令行(临时,重启失效,先用来测通)
+```bash
+ip link show                                       # 找连雷达的有线口名(如 enp2s0 / enxXXXX)
+sudo ip addr add 192.168.1.50/24 dev <网口名>
+```
+
+### 验证
+```bash
+ip -4 addr show | grep 192.168.1.50                # 网口已有 .50
+ping -c 3 192.168.1.146                            # 雷达 ping 通
+```
+两条都正常,再 `ros2 run nav_bringup run_mapping --map-name arena`,RViz 即有点云。
+
+### 常见问题
+- **`ip -4 addr` 里根本没有有线网口**:这台机只有 WiFi。MID360 不能走 WiFi,需插 **USB 转千兆以太网**适配器(会出现成 `enxXXXX`),再按上面配 `.50`。
+- **`bind failed`**:有线口没配 `192.168.1.50`(最常见)。
+- **ping 不通 `192.168.1.146`**:网线没插对口 / 雷达没上电 / 雷达 IP 不是 `.146`。
+- **配了 `.50` 仍连不上**:本机若开了 mihomo/代理 TUN,可能劫持 `192.168.1.0/24`。查 `ip route get 192.168.1.146`,应显示 `dev <有线口>` 而非 `dev Meta/tun`;若被劫持,在代理里把 `192.168.1.0/24` 设为直连或临时关 TUN。
