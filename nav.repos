@@ -16,3 +16,8 @@ repositories:
   # pb_* / pb2025_robot_description)均从 ~/mid360_nav 整理而来,
   # 上游主体为 SMBU-PolarBear-Robotics-Team/pb2025_sentry_nav。
   # loam_interface:point_lio -> /registered_scan + /lidar_odometry 的桥梁,整合时误删、已补回。
+  #
+  # small_gicp:原 small_gicp_relocalization 用 FetchContent 在 build 时联网克隆 koide3/small_gicp,
+  #   弱网/国内设备 build 必失败。已 vendored 到 small_gicp_relocalization/third_party/small_gicp
+  #   (来源 https://github.com/koide3/small_gicp commit 57c1106,裁掉 .git/data/docs),
+  #   CMakeLists 用 FETCHCONTENT_SOURCE_DIR_SMALL_GICP 指向本地 -> build 全程离线。

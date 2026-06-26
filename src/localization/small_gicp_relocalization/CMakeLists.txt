@@ -20,8 +20,11 @@ find_package(ament_cmake_auto REQUIRED)
 find_package(OpenMP REQUIRED)
 ament_auto_find_build_dependencies()
 
-# Add small_gicp dependency
+# Add small_gicp dependency —— 已 vendored 到 third_party/small_gicp。
+# FETCHCONTENT_SOURCE_DIR_<NAME> 让 FetchContent 直接用本地源码、不再联网克隆,
+# 离线/弱网设备也能 build(原 GIT_REPOSITORY 仅作来源记录)。
 include(FetchContent)
+set(FETCHCONTENT_SOURCE_DIR_SMALL_GICP ${CMAKE_CURRENT_SOURCE_DIR}/third_party/small_gicp)
 fetchcontent_declare(
   small_gicp
   GIT_REPOSITORY https://github.com/koide3/small_gicp.git

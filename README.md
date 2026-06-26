@@ -92,8 +92,9 @@ bundle 的 `Livox-SDK2` amd64/arm64 预编译库)都已入库,`git clone` 即得
 **设备要求(满足后即可一键搭建)**:
 - Ubuntu 22.04 + **ROS 2 Humble**(已 `source /opt/ros/humble/setup.bash`)
 - 架构 **x86_64 或 arm64**(Livox-SDK2 两种预编译库都已 bundle,Jetson 狗可直接用)
-- `rosdep` 已初始化;**构建期能访问 GitHub**(`small_gicp_relocalization` 用 FetchContent 拉 `koide3/small_gicp`)。
-  直连不通时 `setup.sh` 会自动用本机 mihomo(`127.0.0.1:7897`)给 github 配 git 代理。
+- `rosdep` 已初始化且能 `rosdep update`(国内镜像见第八节)。
+- **构建期无需 GitHub**:`small_gicp` 已 vendored 进仓库(`small_gicp_relocalization/third_party/`),
+  build 只需 apt(系统库) + PyPI(`xmacro`)。仅**首次 `git clone` 本仓库**需要网络。
 
 ```bash
 git clone https://github.com/WrenInk/nav ~/nav && cd ~/nav
@@ -109,3 +110,27 @@ source install/setup.bash
   - `sdformat_tools`(纯 Python,转 URDF)+ `pip install xmacro` —— 缺则**导航 launch 直接报错起不来**。
   - `loam_interface` —— point_lio→`/registered_scan`+`/lidar_odometry` 的桥梁,缺则**重定位/感知/导航全瘫**。
   - `./smoke_test.sh` 能在部署时立刻发现这类"缺包"问题。
+
+## 八、国内网络注意(GitHub / rosdep)
+
+`build` 本身已不依赖 GitHub(small_gicp 已 vendored),但仍有两处国内可能卡住:
+
+**1. `git clone` 本仓库** —— 直连慢/失败时用镜像或代理:
+```bash
+git clone https://gitclone.com/github.com/WrenInk/nav ~/nav   # 镜像
+# 或有 mihomo 时: git config --global http.https://github.com.proxy http://127.0.0.1:7897
+```
+> ⚠️ 若设备**没运行 mihomo**,别让 git/环境变量指向 `127.0.0.1:7897`,否则一切外连"连接被拒绝"。
+> 检查: `env | grep -i proxy`,清理: `unset http_proxy https_proxy all_proxy`。
+
+**2. `rosdep update`** —— 国内 `raw.githubusercontent.com` 常被墙(即使 github.com 通也可能拉不到)。二选一:
+```bash
+wget http://fishros.com/install -O fishros && . fishros     # 选"一键配置 rosdep"(最省事)
+```
+或清华 tuna 镜像:
+```bash
+echo 'export ROSDISTRO_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/rosdistro/index-v4.yaml' >> ~/.bashrc && source ~/.bashrc
+sudo sed -i 's#https://raw.githubusercontent.com#https://mirrors.tuna.tsinghua.edu.cn/github-raw#g' /etc/ros/rosdep/sources.list.d/20-default.list
+rosdep update
+```
+配好后重跑 `./setup.sh` 即可。
