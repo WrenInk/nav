@@ -98,9 +98,9 @@ bundle 的 `Livox-SDK2` amd64/arm64 预编译库)都已入库,`git clone` 即得
 
 ```bash
 git clone https://github.com/WrenInk/nav ~/nav && cd ~/nav
-./setup.sh          # 自动:[联网检测/配代理] + rosdep 装系统依赖 + pip xmacro + colcon build
+./setup.sh          # 自动:环境自检(ROS/架构) + rosdep 装系统依赖 + pip xmacro + colcon build
 source install/setup.bash
-./smoke_test.sh     # 可选:验证包齐全 + 两条 launch 可解析
+./smoke_test.sh     # 可选:验证包齐全 + 两条 launch 可解析(或一步带上:./setup.sh --smoke)
 ```
 
 - **改完同步到其它设备**:`git pull && colcon build --symlink-install`(或局域网 `rsync` 直推 `src/`)。
