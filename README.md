@@ -186,7 +186,7 @@ MID360 ─livox_ros_driver2─▶ /livox/lidar,/livox/imu
   - `loam_interface` —— point_lio→`/registered_scan`+`/lidar_odometry` 的桥梁,缺则**重定位/感知/导航全瘫**。
   - `./smoke_test.sh` 能在部署时立刻发现这类"缺包"问题。
 
-### 更新 / 同步到其它设备(代码更新后,不用重新 clone)
+### 更新 / 同步到其它设备
 
 `git clone` 只在第一次做;之后所有设备靠 `git pull` 增量更新——GitHub 远端是"唯一真相",**一台改完 `push`,其它设备 `pull` 下来重编即可**。标准流程(每台消费设备上):
 
@@ -209,10 +209,3 @@ source install/setup.bash
 - **消费设备别在本地改代码**,否则 `git pull` 会和本地改动冲突。真冲突了:`git stash`(临时存)或 `git checkout -- <文件>`(丢弃本地改)再 pull。保持"一台编辑机 push、其它只 pull"最干净。
 - **锁版本**:要几台机跑同一份代码,`git pull` 到同一个 commit / tag,别各 pull 各的 HEAD。
 - `build/` `install/` `log/` 都在 `.gitignore`,不随 git 同步;各设备本地各自编译,互不干扰。
-
-**备选:局域网直推(不走 GitHub,现场弱网最快)**
-```bash
-# 编辑机上把 src/ 直接 rsync 到狗/另一台(build/install 是 gitignore 的,别同步)
-rsync -av --delete ~/nav/src/ user@192.168.x.x:~/nav/src/
-# 再到对端: cd ~/nav && colcon build --symlink-install && source install/setup.bash
-```
