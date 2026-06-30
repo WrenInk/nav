@@ -25,13 +25,58 @@ nav/src/
 └── bringup/       nav_bringup ★新增★         统一入口: 建图(自动保存) / 导航 launch + 工具
 ```
 
-## 二、编译
+## 二、部署操作指南(新设备从零到能跑导航)
 
+> 满足「第 0 步前提」后,**`./setup.sh` 一条命令即装好依赖 + 编译**。原理/多设备对齐/依赖台账见第七节,国内网络见第八节,雷达网口见第九节。
+
+### 0. 前提(设备要求,务必先满足)
+- **Ubuntu 22.04 + ROS 2 Humble**,且已 `source /opt/ros/humble/setup.bash`(没装 setup.sh 会直接提示退出)。
+- 架构 **x86_64 或 arm64**(Livox-SDK2 两种预编译库都已 bundle,Jetson 狗可直接用)。
+- **网络正常**:装系统依赖(apt)、`xmacro`(pip)、首次 `rosdep update` 需联网;`build` 本身离线(small_gicp 已 vendored)。
+- **国内设备**:先按第八节把 apt / rosdep 换国内源(否则 `setup.sh` 会卡在 `rosdep update`)。
+
+### 1. 克隆
 ```bash
-cd ~/nav
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+git clone https://github.com/WrenInk/nav ~/nav && cd ~/nav
+```
+> 直连慢/失败:用镜像或代理,见第八节。
+
+### 2. 一键搭建(装依赖 + 编译)
+```bash
+./setup.sh            # 装完即可;想顺带自检用: ./setup.sh --smoke
+```
+`setup.sh` 自动依次完成:① 环境自检(ROS/架构)→ ② `rosdep` 装系统依赖 → ③ `pip install xmacro` →
+④ `colcon build --symlink-install`(Release)。任一步失败都会停下并打印怎么修(指向第八节)。
+
+### 3. 每个新终端都要 source
+```bash
+source ~/nav/install/setup.bash      # 嫌烦可写进 ~/.bashrc
+```
+
+### 4. 验证(推荐)
+```bash
+./smoke_test.sh                       # 校验包齐全 + 建图/导航两条 launch 可解析
+```
+
+### 5. 配 MID360 有线网口(接真雷达、跑建图/导航前必做)
+连雷达的有线网口配静态 **`192.168.1.50/24`,网关留空**(否则驱动 `bind failed`、收不到点云)。详见第九节。
+```bash
+ip -4 addr show | grep 192.168.1.50   # 确认网口已有 .50
+ping -c 3 192.168.1.146               # 确认 ping 通雷达
+```
+
+### 6. 跑起来(详细用法见第三节)
+```bash
+ros2 run nav_bringup run_mapping --map-name arena                          # 建图(Ctrl+C 自动存图)
+ros2 launch nav_bringup navigation.launch.py map_name:=arena use_rviz:=false  # 导航(已带 arena 地图,无需先建图)
+```
+
+### 仅改了代码后重新编译
+```bash
+cd ~/nav && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
 ```
+> 只改 `*.yaml` / `launch` 时因 `--symlink-install` **即时生效,无需重编**。
 
 ## 三、用法
 
