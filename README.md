@@ -168,27 +168,51 @@ MID360 ─livox_ros_driver2─▶ /livox/lidar,/livox/imu
    Nav2: costmap(static<map>.yaml + terrain/scan + inflation) + planner + omni-pid-pursuit ─▶ /cmd_vel
 ```
 
-## 五、给机器狗 / N150 的调优(可选,见对话记录)
-- N150 上为省 CPU:costmap 可改 2D `ObstacleLayer`(走 `/scan`),控制器用 omni-pid-pursuit(已内置),
-  重定位可换 AMCL(2D 更省)。详见性能分析结论。
-- `~/nav/src/navigation/pb2025_nav_bringup/config/reality/nav2_params.yaml` 为主参数文件。
-
-## 六、注意
+## 五、注意
 - MID360 网络:雷达 `192.168.1.146`、主机 `192.168.1.50`(驱动 config 已设);本机若开 mihomo TUN 会劫持
   `192.168.1.0/24`,真机/狗上无此问题。
 - URDF 挂载(`pb2025_robot_description`)目前是实车配置,换到机器狗需更新 MID360 安装位姿(前顶、下俯 30°)。
 
-## 七、部署原理 / 多设备对齐
+## 六、部署原理 / 多设备对齐
 
-> 部署步骤见第二节;这里是背后的原理与多设备协作要点。
+> 部署步骤见第二节;这里是背后的原理 + 代码更新后多设备如何同步。
 
 本工作区是 **monorepo**:所有包(含第三方 `sdformat_tools`、桥接节点 `loam_interface`、bundle 的 `Livox-SDK2` amd64/arm64 预编译库)都已入库,`git clone` 即得全部源码。
 
 - **构建期无需 GitHub**:`small_gicp` 已 vendored 进仓库(`small_gicp_relocalization/third_party/`),build 只需 apt(系统库) + PyPI(`xmacro`)。仅**首次 `git clone` 本仓库**需要网络。
-- **改完同步到其它设备**:`git pull && colcon build --symlink-install`(或局域网 `rsync` 直推 `src/`)。
-- **锁版本**:用 git tag/commit 保证各设备构建同一份代码。
 - `nav.repos`:外部依赖来源台账(溯源/更新用)。
 - ⚠️ 关键依赖(整合时曾漏,已补):
   - `sdformat_tools`(纯 Python,转 URDF)+ `pip install xmacro` —— 缺则**导航 launch 直接报错起不来**。
   - `loam_interface` —— point_lio→`/registered_scan`+`/lidar_odometry` 的桥梁,缺则**重定位/感知/导航全瘫**。
   - `./smoke_test.sh` 能在部署时立刻发现这类"缺包"问题。
+
+### 更新 / 同步到其它设备(代码更新后,不用重新 clone)
+
+`git clone` 只在第一次做;之后所有设备靠 `git pull` 增量更新——GitHub 远端是"唯一真相",**一台改完 `push`,其它设备 `pull` 下来重编即可**。标准流程(每台消费设备上):
+
+```bash
+cd ~/nav
+git pull                                                          # 拉最新代码(地图 arena.* 也在 git 里,一并更新)
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
+```
+
+按"改了什么"可以更省事:
+
+| 这次改动 | 其它设备要做什么 |
+|---|---|
+| 只改 `*.yaml` / `launch` / 地图 | `git pull` 即可,**因 `--symlink-install` 即时生效,连 build 都不用**,重启 launch 就行 |
+| 改了 C++(point_lio / small_gicp / terrain / 驱动 等) | `git pull` + `colcon build`(增量,只重编动过的包,很快) |
+| 改了依赖(`package.xml` 加了新包) | `git pull` 后重跑 `./setup.sh`(补 rosdep 依赖再 build) |
+
+注意:
+- **消费设备别在本地改代码**,否则 `git pull` 会和本地改动冲突。真冲突了:`git stash`(临时存)或 `git checkout -- <文件>`(丢弃本地改)再 pull。保持"一台编辑机 push、其它只 pull"最干净。
+- **锁版本**:要几台机跑同一份代码,`git pull` 到同一个 commit / tag,别各 pull 各的 HEAD。
+- `build/` `install/` `log/` 都在 `.gitignore`,不随 git 同步;各设备本地各自编译,互不干扰。
+
+**备选:局域网直推(不走 GitHub,现场弱网最快)**
+```bash
+# 编辑机上把 src/ 直接 rsync 到狗/另一台(build/install 是 gitignore 的,别同步)
+rsync -av --delete ~/nav/src/ user@192.168.x.x:~/nav/src/
+# 再到对端: cd ~/nav && colcon build --symlink-install && source install/setup.bash
+```
