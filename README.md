@@ -27,48 +27,97 @@ nav/src/
 
 ## 二、部署操作指南(新设备从零到能跑导航)
 
-> 满足「第 0 步前提」后,**`./setup.sh` 一条命令即装好依赖 + 编译**。原理/多设备对齐/依赖台账见第七节,国内网络见第八节,雷达网口见第九节。
+> 从一台干净的设备开始,**按 0→7 顺序往下做即可**。原理 / 多设备对齐见第七节。
 
 ### 0. 前提(设备要求,务必先满足)
-- **Ubuntu 22.04 + ROS 2 Humble**,且已 `source /opt/ros/humble/setup.bash`(没装 setup.sh 会直接提示退出)。
+- **Ubuntu 22.04 + ROS 2 Humble**,且已 `source /opt/ros/humble/setup.bash`(没装 `setup.sh` 会直接提示退出)。
 - 架构 **x86_64 或 arm64**(Livox-SDK2 两种预编译库都已 bundle,Jetson 狗可直接用)。
 - **网络正常**:装系统依赖(apt)、`xmacro`(pip)、首次 `rosdep update` 需联网;`build` 本身离线(small_gicp 已 vendored)。
-- **国内设备**:先按第八节把 apt / rosdep 换国内源(否则 `setup.sh` 会卡在 `rosdep update`)。
 
-### 1. 克隆
+### 1. 国内换源(国外 / 网络已通畅可跳过)
+`build` 本身不依赖 GitHub(small_gicp 已 vendored),但 **`git clone` 本仓库、`rosdep update`、apt 装依赖** 在国内可能卡。换源后这三处都顺。
+
+**1a. 换 apt / rosdep 源** —— 推荐 fishros 一键(系统 apt 源 + ROS 源 + rosdep 一起换,最省事):
+```bash
+wget http://fishros.com/install -O fishros && . fishros
+# 菜单里选「换源」(系统源 + ROS 源) 和「一键配置 rosdep」
+```
+或手动用清华 tuna 配 rosdep:
+```bash
+echo 'export ROSDISTRO_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/rosdistro/index-v4.yaml' >> ~/.bashrc && source ~/.bashrc
+sudo sed -i 's#https://raw.githubusercontent.com#https://mirrors.tuna.tsinghua.edu.cn/github-raw#g' /etc/ros/rosdep/sources.list.d/20-default.list
+rosdep update
+```
+
+**1b. `git clone` 走镜像 / 代理**(下一步克隆本仓库用,直连慢/失败时):
+```bash
+# 镜像(下一步把 clone 地址换成它):https://gitclone.com/github.com/WrenInk/nav
+# 或有 mihomo 时走代理:
+git config --global http.https://github.com.proxy http://127.0.0.1:7897
+```
+> ⚠️ 设备**没运行 mihomo** 时,别让 git / 环境变量指向 `127.0.0.1:7897`,否则一切外连"连接被拒绝"。
+> 检查:`env | grep -i proxy`,清理:`unset http_proxy https_proxy all_proxy`。
+
+### 2. 克隆
 ```bash
 git clone https://github.com/WrenInk/nav ~/nav && cd ~/nav
+# 国内直连慢:git clone https://gitclone.com/github.com/WrenInk/nav ~/nav && cd ~/nav
 ```
-> 直连慢/失败:用镜像或代理,见第八节。
 
-### 2. 一键搭建(装依赖 + 编译)
+### 3. 一键搭建(装依赖 + 编译)
 ```bash
 ./setup.sh            # 装完即可;想顺带自检用: ./setup.sh --smoke
 ```
 `setup.sh` 自动依次完成:① 环境自检(ROS/架构)→ ② `rosdep` 装系统依赖 → ③ `pip install xmacro` →
-④ `colcon build --symlink-install`(Release)。任一步失败都会停下并打印怎么修(指向第八节)。
+④ `colcon build --symlink-install`(Release)。任一步失败都会停下并打印怎么修;若卡在 `rosdep update`,回第 1 步换源再重跑。
 
-### 3. 每个新终端都要 source
+### 4. 每个新终端都要 source
 ```bash
 source ~/nav/install/setup.bash      # 嫌烦可写进 ~/.bashrc
 ```
 
-### 4. 验证(推荐)
+### 5. 验证(推荐)
 ```bash
 ./smoke_test.sh                       # 校验包齐全 + 建图/导航两条 launch 可解析
 ```
 
-### 5. 配 MID360 有线网口(接真雷达、跑建图/导航前必做)
-连雷达的有线网口配静态 **`192.168.1.50/24`,网关留空**(否则驱动 `bind failed`、收不到点云)。详见第九节。
+### 6. 配 MID360 有线网口(接真雷达、跑建图/导航前必做)
+MID360 是**有线以太网雷达**。驱动启动时把数据套接字 **bind 到主机 IP `192.168.1.50`**(见 `src/driver/livox_ros_driver2/config/MID360_config.json`)。若连雷达的有线网口没有这个 IP,会报 `bind failed → Failed to init livox lidar sdk → Init lds lidar fail!` → point_lio 收不到点 → **RViz 没有点云**。
+
+**网段固定**:雷达 `192.168.1.146`、主机 `192.168.1.50`、掩码 `/24`(同网段直连,无需网关)。
+
+**方法 A:图形界面(永久,推荐)** —— 设置 → 网络 → 有线 → ⚙ → **IPv4 → 手动(Manual)**:
+
+| 字段 | 值 |
+|---|---|
+| 地址 Address | `192.168.1.50` |
+| 子网掩码 Netmask | `255.255.255.0`(或前缀 `24`) |
+| 网关 Gateway | **留空!** 填了会抢默认路由、断 WiFi 上网 |
+| DNS / 路由 | 留空 |
+
+保存后把该有线连接**关→开**一次。上网仍走 WiFi,互不影响。
+
+**方法 B:命令行(临时,重启失效,先用来测通)**
 ```bash
-ip -4 addr show | grep 192.168.1.50   # 确认网口已有 .50
-ping -c 3 192.168.1.146               # 确认 ping 通雷达
+ip link show                                       # 找连雷达的有线口名(如 enp2s0 / enxXXXX)
+sudo ip addr add 192.168.1.50/24 dev <网口名>
 ```
 
-### 6. 跑起来(详细用法见第三节)
+**验证**
 ```bash
-ros2 run nav_bringup run_mapping --map-name arena                          # 建图(Ctrl+C 自动存图)
-ros2 launch nav_bringup navigation.launch.py map_name:=arena use_rviz:=false  # 导航(已带 arena 地图,无需先建图)
+ip -4 addr show | grep 192.168.1.50                # 网口已有 .50
+ping -c 3 192.168.1.146                            # 雷达 ping 通
+```
+两条都正常即可。常见问题:
+- **`ip -4 addr` 里根本没有有线网口**:这台机只有 WiFi。MID360 不能走 WiFi,需插 **USB 转千兆以太网**适配器(会出现成 `enxXXXX`),再按上面配 `.50`。
+- **`bind failed`**:有线口没配 `192.168.1.50`(最常见)。
+- **ping 不通 `192.168.1.146`**:网线没插对口 / 雷达没上电 / 雷达 IP 不是 `.146`。
+- **配了 `.50` 仍连不上**:本机若开了 mihomo/代理 TUN,可能劫持 `192.168.1.0/24`。查 `ip route get 192.168.1.146`,应显示 `dev <有线口>` 而非 `dev Meta/tun`;若被劫持,在代理里把 `192.168.1.0/24` 设为直连或临时关 TUN。
+
+### 7. 跑起来(详细用法见第三节)
+```bash
+ros2 run nav_bringup run_mapping --map-name arena                              # 建图(Ctrl+C 自动存图)
+ros2 launch nav_bringup navigation.launch.py map_name:=arena use_rviz:=false   # 导航(已带 arena 地图,无需先建图)
 ```
 
 ### 仅改了代码后重新编译
@@ -129,25 +178,13 @@ MID360 ─livox_ros_driver2─▶ /livox/lidar,/livox/imu
   `192.168.1.0/24`,真机/狗上无此问题。
 - URDF 挂载(`pb2025_robot_description`)目前是实车配置,换到机器狗需更新 MID360 安装位姿(前顶、下俯 30°)。
 
-## 七、部署到新设备 / 多设备对齐
+## 七、部署原理 / 多设备对齐
 
-本工作区是 **monorepo**:所有包(含第三方 `sdformat_tools`、桥接节点 `loam_interface`、
-bundle 的 `Livox-SDK2` amd64/arm64 预编译库)都已入库,`git clone` 即得全部源码。
+> 部署步骤见第二节;这里是背后的原理与多设备协作要点。
 
-**设备要求(满足后即可一键搭建)**:
-- Ubuntu 22.04 + **ROS 2 Humble**(已 `source /opt/ros/humble/setup.bash`)
-- 架构 **x86_64 或 arm64**(Livox-SDK2 两种预编译库都已 bundle,Jetson 狗可直接用)
-- `rosdep` 已初始化且能 `rosdep update`(国内镜像见第八节)。
-- **构建期无需 GitHub**:`small_gicp` 已 vendored 进仓库(`small_gicp_relocalization/third_party/`),
-  build 只需 apt(系统库) + PyPI(`xmacro`)。仅**首次 `git clone` 本仓库**需要网络。
+本工作区是 **monorepo**:所有包(含第三方 `sdformat_tools`、桥接节点 `loam_interface`、bundle 的 `Livox-SDK2` amd64/arm64 预编译库)都已入库,`git clone` 即得全部源码。
 
-```bash
-git clone https://github.com/WrenInk/nav ~/nav && cd ~/nav
-./setup.sh          # 自动:环境自检(ROS/架构) + rosdep 装系统依赖 + pip xmacro + colcon build
-source install/setup.bash
-./smoke_test.sh     # 可选:验证包齐全 + 两条 launch 可解析(或一步带上:./setup.sh --smoke)
-```
-
+- **构建期无需 GitHub**:`small_gicp` 已 vendored 进仓库(`small_gicp_relocalization/third_party/`),build 只需 apt(系统库) + PyPI(`xmacro`)。仅**首次 `git clone` 本仓库**需要网络。
 - **改完同步到其它设备**:`git pull && colcon build --symlink-install`(或局域网 `rsync` 直推 `src/`)。
 - **锁版本**:用 git tag/commit 保证各设备构建同一份代码。
 - `nav.repos`:外部依赖来源台账(溯源/更新用)。
@@ -155,74 +192,3 @@ source install/setup.bash
   - `sdformat_tools`(纯 Python,转 URDF)+ `pip install xmacro` —— 缺则**导航 launch 直接报错起不来**。
   - `loam_interface` —— point_lio→`/registered_scan`+`/lidar_odometry` 的桥梁,缺则**重定位/感知/导航全瘫**。
   - `./smoke_test.sh` 能在部署时立刻发现这类"缺包"问题。
-
-## 八、国内网络注意(GitHub / rosdep)
-
-`build` 本身已不依赖 GitHub(small_gicp 已 vendored),但仍有两处国内可能卡住:
-
-**1. `git clone` 本仓库** —— 直连慢/失败时用镜像或代理:
-```bash
-git clone https://gitclone.com/github.com/WrenInk/nav ~/nav   # 镜像
-# 或有 mihomo 时: git config --global http.https://github.com.proxy http://127.0.0.1:7897
-```
-> ⚠️ 若设备**没运行 mihomo**,别让 git/环境变量指向 `127.0.0.1:7897`,否则一切外连"连接被拒绝"。
-> 检查: `env | grep -i proxy`,清理: `unset http_proxy https_proxy all_proxy`。
-
-**2. `rosdep update`** —— 国内 `raw.githubusercontent.com` 常被墙(即使 github.com 通也可能拉不到)。
-
-**推荐:fishros 一键换源**(同时把系统 apt 源 + rosdep 源都换成国内镜像,最省事):
-```bash
-wget http://fishros.com/install -O fishros && . fishros
-```
-运行后在菜单里选「**换源**」(系统源 + ROS 源)和「**一键配置 rosdep**」即可。
-
-或手动用清华 tuna 镜像配 rosdep:
-```bash
-echo 'export ROSDISTRO_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/rosdistro/index-v4.yaml' >> ~/.bashrc && source ~/.bashrc
-sudo sed -i 's#https://raw.githubusercontent.com#https://mirrors.tuna.tsinghua.edu.cn/github-raw#g' /etc/ros/rosdep/sources.list.d/20-default.list
-rosdep update
-```
-配好后重跑 `./setup.sh` 即可。
-
-## 九、MID360 网口配置(建图/导航前必做)
-
-MID360 是**有线以太网雷达**。驱动启动时会把数据套接字 **bind 到主机 IP `192.168.1.50`**(见
-`src/driver/livox_ros_driver2/config/MID360_config.json`)。若主机有线网口没有这个 IP,会报:
-
-```
-bind failed  →  Failed to init livox lidar sdk  →  Init lds lidar fail!
-```
-→ point_lio 收不到点 → **RViz 没有点云**。所以**新设备第一次用前,必须把连雷达的有线网口配成静态 `192.168.1.50`**。
-
-**网段固定**:雷达 `192.168.1.146`、主机 `192.168.1.50`、掩码 `/24`(同网段直连,无需网关)。
-
-### 方法 A:图形界面(永久,推荐)
-设置 → 网络 → 有线 → ⚙ → **IPv4 → 手动(Manual)**:
-
-| 字段 | 值 |
-|---|---|
-| 地址 Address | `192.168.1.50` |
-| 子网掩码 Netmask | `255.255.255.0`(或前缀 `24`) |
-| 网关 Gateway | **留空!** 填了会抢默认路由、断 WiFi 上网 |
-| DNS / 路由 | 留空 |
-
-保存后把该有线连接**关→开**一次。上网仍走 WiFi,互不影响。
-
-### 方法 B:命令行(临时,重启失效,先用来测通)
-```bash
-ip link show                                       # 找连雷达的有线口名(如 enp2s0 / enxXXXX)
-sudo ip addr add 192.168.1.50/24 dev <网口名>
-```
-
-### 验证
-```bash
-ip -4 addr show | grep 192.168.1.50                # 网口已有 .50
-ping -c 3 192.168.1.146                            # 雷达 ping 通
-```
-两条都正常,再 `ros2 run nav_bringup run_mapping --map-name arena`,RViz 即有点云。
-
-### 常见问题
-- **`ip -4 addr` 里根本没有有线网口**:这台机只有 WiFi。MID360 不能走 WiFi,需插 **USB 转千兆以太网**适配器(会出现成 `enxXXXX`),再按上面配 `.50`。
-- **`bind failed`**:有线口没配 `192.168.1.50`(最常见)。
-- **ping 不通 `192.168.1.146`**:网线没插对口 / 雷达没上电 / 雷达 IP 不是 `.146`。
-- **配了 `.50` 仍连不上**:本机若开了 mihomo/代理 TUN,可能劫持 `192.168.1.0/24`。查 `ip route get 192.168.1.146`,应显示 `dev <有线口>` 而非 `dev Meta/tun`;若被劫持,在代理里把 `192.168.1.0/24` 设为直连或临时关 TUN。
